@@ -1,2 +1,2 @@
 # entra-reactjs-sso
-Single Sign On Using Microsoft Entra ID and ReactJS
+Single Sign On Portal for Multiple ReactJS applications Using Microsoft Entra ID
