@@ -1,9 +1,9 @@
 import React, {useEffect, useState} from 'react';
 import {MsalProvider, useIsAuthenticated, useMsal} from '@azure/msal-react';
 import {Alert, Button, Col, Container, Form, Modal, Row} from "react-bootstrap";
-import {msalAppAInstance, msalAppBInstance, defaultScopes} from "./MsalConfig";
+import {msalAppAInstance, msalAppBInstance, defaultScopes, ConfigAppA} from "./MsalConfig";
 import {
-    AccountInfo, InteractionStatus,
+    AccountInfo, EventType, InteractionStatus,
     RedirectRequest
 } from "@azure/msal-browser";
 import {useCookies} from "react-cookie";
@@ -25,6 +25,51 @@ function App() {
     const handleCloseModal = () => setShowModal(false);
     const handleShowModal = () => setShowModal(true);
     const [profileData, setProfileData] = useState<Profile>();
+
+    const {inProgress} = useMsal();
+
+    msalAppAInstance.addEventCallback((message) => {
+        if (message.eventType === EventType.LOGIN_SUCCESS && message.payload) {
+            const result: AccountInfo = message.payload as AccountInfo;
+            msalAppAInstance.setActiveAccount(result);
+        }
+    });
+
+    useEffect(() => {
+        if (!isAuthenticated) {
+            if (inProgress === InteractionStatus.None) {
+                const account = getActiveAccount();
+                if (account) {
+                    msalAppAInstance.initialize().then(() => {
+                        msalAppAInstance.loginPopup({
+                            loginHint: account.username,
+                            scopes: defaultScopes,
+                            redirectUri: ConfigAppA.redirectUri
+                        }).then(response => {
+                            console.log("LOG login Response: ", response)
+                        }).catch(error => {
+                            console.error("LOG login Error: ", error)
+                        })
+                    });
+                }
+            }
+        }
+    }, [inProgress, isAuthenticated, setCookie]);
+
+    useEffect(() => {
+        if (isAuthenticated && !getCookieActiveAccount()) {
+            const account = getActiveAccount();
+            if (account) {
+                setCookie('activeAccount', account, {path: '/', secure: true, sameSite: 'none'});
+            }
+        }
+    }, [isAuthenticated, setCookie]);
+
+    useEffect(() => {
+        if (logoutParam && logoutParam === "true") {
+            drainLocalStorage();
+        }
+    }, [logoutParam]);
 
     const handleLogout = (logoutType: LogoutType) => {
         console.log("Starting Logout...");
@@ -79,51 +124,10 @@ function App() {
 
         return msalAppAInstance.getActiveAccount()
             ?? msalAppAInstance.getAllAccounts()[0]
-            ?? cookies['activeAccount'];
+            ?? getCookieActiveAccount()
+            ?? null;
     }
 
-    const {inProgress} = useMsal();
-    useEffect(() => {
-        console.log("LOG isAuthenticated: ", isAuthenticated)
-        if (!isAuthenticated) {
-            if (inProgress === InteractionStatus.None) {
-                const account = getActiveAccount();
-                if (account) {
-                    msalAppAInstance.initialize().then(() => {
-                        msalAppAInstance.loginPopup({
-                            loginHint: account.username,
-                            scopes: defaultScopes,
-                        }).then(response => {
-                            console.log("LOG login Response: ", response)
-                        }).catch(error => {
-                            console.error("LOG login Error: ", error)
-                        }).finally(() => {
-                            setCookie('activeAccount', account);
-                        });
-                    });
-                }
-            }
-        } else {
-            const account = getActiveAccount();
-            console.log("LOG Account: ", account)
-            if (account && !getCookieActiveAccount()) {
-                console.log("LOG assign cookie")
-                setCookie('activeAccount', account);
-            }
-        }
-    }, [inProgress, isAuthenticated]);
-
-
-    function drainLocalStorage() {
-        console.log("Draining Local Storage...")
-        const items = {...localStorage};
-        for (const key in items) {
-            localStorage.removeItem(key);
-        }
-        console.log("cleaning cookies...")
-        removeCookie('activeAccount');
-        window.location.href = "http://localhost:5173?logout=true";
-    }
 
     function getCookieActiveAccount(): AccountInfo | null {
         if (cookies['activeAccount'] && cookies['activeAccount'] !== "undefined") {
@@ -134,10 +138,19 @@ function App() {
     }
 
 
+    function drainLocalStorage() {
+        console.log("LOG Draining Local Storage...")
+        const items = {...localStorage};
+        for (const key in items) {
+            localStorage.removeItem(key);
+        }
+        console.log("LOG cleaning cookies...")
+        removeCookie('activeAccount');
+        window.location.href = "http://localhost:5173?logout=true";
+    }
+
     function showMyProfile() {
         getProfile(getActiveAccount()).then(response => {
-            // console.log("Profile Response: ", response)
-            //convert response to Profile type
             const profile: Profile = {
                 displayName: response.displayName,
                 givenName: response.givenName,
@@ -156,16 +169,16 @@ function App() {
         });
     }
 
+
     return (
         <>
-            {isAuthenticated && !getCookieActiveAccount() && drainLocalStorage()}
-            {logoutParam === "true" && drainLocalStorage()}
             {isAuthenticated
                 ?
                 <Container>
                     <Row className={"justify-content-center"}>
                         <Col xs lg={5}>
-                            <Alert variant={"success"}>You are authenticated IN APP A</Alert>
+                            <Alert variant={"success"}>Welcome <b>{getActiveAccount()?.username}</b> You are
+                                authenticated IN APP A</Alert>
                         </Col>
                     </Row>
                     <Row className={"justify-content-center mb-3"}>

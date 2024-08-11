@@ -4,82 +4,81 @@ import {
     ConfigAppA,
     ConfigAppB,
     msalAppAInstance,
-    msalAppBInstance,
-    msalPlaygroundInstance
+    msalAppBInstance
 } from "./MsalConfig.ts";
 import {useLocation, useNavigate} from "react-router";
 import {useIsAuthenticated} from "@azure/msal-react";
 import {AccountInfo} from "@azure/msal-browser";
 import {useCookies} from "react-cookie";
-import {useEffect, useState} from "react";
+import {useEffect} from "react";
 
 function App() {
     const navigate = useNavigate();
     const isAuthenticated = useIsAuthenticated();
     const location = useLocation();
     const logoutParam: string = new URLSearchParams(location.search).get('logout');
-    const [cookies, setCookie, removeCookie] = useCookies(['activeAccount']);
+    const [, setCookie, removeCookie] = useCookies(['activeAccount']);
 
     const chooseApp = (config: ApplicationConfig) => {
         if (isAuthenticated) {
-            if (config.appName === ConfigAppA.appName) {
-                console.log("Redirecting to App A")
-                const activeAccount = getActiveAccount();
-                if (activeAccount) {
-                    msalAppAInstance.setActiveAccount(activeAccount);
-                    msalAppBInstance.setActiveAccount(activeAccount);
+            const activeAccount = getActiveAccount();
+            if (activeAccount) {
+                if (config.appName === ConfigAppA.appName) {
+                    console.log("Redirecting to App A");
+                    window.location = "http://localhost:3000?username=" + activeAccount.username;
+                } else {
+                    console.log("Redirecting to App B");
                     window.location = "http://localhost:3000?username=" + activeAccount.username;
                 }
             } else {
-                console.log("Redirecting to App B")
-                const activeAccount = getActiveAccount();
-                if (activeAccount) {
-                    msalAppAInstance.setActiveAccount(activeAccount);
-                    msalAppBInstance.setActiveAccount(activeAccount);
-                    window.location = "http://localhost:3001?username=" + activeAccount.username;
-                }
+                console.error("No Active Account Found");
             }
         } else {
-            console.log("Config: ", config);
             const loginPath = config === ConfigAppA ? "/login-app-a" : "/login-app-b";
             navigate(loginPath, {state: {appConfig: config}})
         }
     }
 
-    function drainLocalStorage() {
-        console.log("Draining Local Storage...")
-        const items = {...localStorage};
-        for (const key in items) {
-            localStorage.removeItem(key);
-        }
-        console.log("cleaning cookies...")
-        removeCookie('activeAccount');
-    }
-
     function logout() {
         console.log("Logout...")
         if (isAuthenticated) {
-            console.log("Logging Out...")
-            msalPlaygroundInstance.logoutRedirect()
+            console.log("Logging Out APP A...")
+            msalAppAInstance.logoutRedirect()
                 .then(response => {
                     console.log("Logout Response: ", response)
-                }).catch(error => {
-                console.error("Logout Error: ", error)
+                }).catch(errorLogoutAppA => {
+                console.log("Error logging out: ", errorLogoutAppA);
+            });
+
+            console.log("Logging Out APP B...")
+            msalAppBInstance.logoutRedirect().then(response => {
+                console.log("Logout Response: ", response)
+            }).catch(errorLogoutAppB => {
+                console.error("Error logging out: ", errorLogoutAppB);
             });
         }
     }
 
-    const [activeAccount, setActiveAccount] = useState<AccountInfo | null>(null);
-
     useEffect(() => {
         if (isAuthenticated) {
             const account = getActiveAccount();
-            setActiveAccount(account);
             if (account) {
-                setCookie('activeAccount', account);
+                setCookie('activeAccount', account, {path: '/', secure: true, sameSite: 'none'});
             }
         }
-    }, [isAuthenticated]);
+    }, [isAuthenticated, setCookie]);
+
+    useEffect(() => {
+        if (logoutParam === 'true') {
+            console.log("LOG Draining Local Storage...")
+            const items = {...localStorage};
+            for (const key in items) {
+                localStorage.removeItem(key);
+            }
+            console.log("LOG cleaning cookies...")
+            removeCookie('activeAccount');
+        }
+    }, [logoutParam, removeCookie]);
 
     function getActiveAccount(): AccountInfo | null {
 
@@ -92,7 +91,6 @@ function App() {
 
     return (
         <>
-            {logoutParam === "true" && drainLocalStorage()}
             <Container fluid={"lg"}>
                 {isAuthenticated ?
                     <Row className={"justify-content-center"}>

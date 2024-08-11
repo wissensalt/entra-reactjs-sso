@@ -1,8 +1,8 @@
 import React, {useEffect, useState} from 'react';
 import {MsalProvider, useIsAuthenticated, useMsal} from '@azure/msal-react';
 import {Alert, Button, Col, Container, Form, Modal, Row} from "react-bootstrap";
-import {defaultScopes, msalAppAInstance, msalAppBInstance} from "./MsalConfig";
-import {AccountInfo, InteractionStatus, RedirectRequest, SilentRequest} from "@azure/msal-browser";
+import {ConfigAppB, defaultScopes, msalAppAInstance, msalAppBInstance} from "./MsalConfig";
+import {AccountInfo, EventType, InteractionStatus, RedirectRequest, SilentRequest} from "@azure/msal-browser";
 import {useCookies} from "react-cookie";
 import {useLocation} from "react-router";
 import {getProfile, Profile} from "./Outbound";
@@ -22,8 +22,50 @@ function App() {
     const handleCloseModal = () => setShowModal(false);
     const handleShowModal = () => setShowModal(true);
     const [profileData, setProfileData] = useState<Profile>();
+    const {inProgress} = useMsal();
 
+    msalAppBInstance.addEventCallback((message) => {
+        if (message.eventType === EventType.LOGIN_SUCCESS && message.payload) {
+            const result: AccountInfo = message.payload as AccountInfo;
+            msalAppBInstance.setActiveAccount(result);
+        }
+    });
 
+    useEffect(() => {
+        if (!isAuthenticated) {
+            if (inProgress === InteractionStatus.None) {
+                const account = getActiveAccount();
+                if (account) {
+                    msalAppBInstance.initialize().then(() => {
+                        msalAppBInstance.loginPopup({
+                            loginHint: account.username,
+                            scopes: defaultScopes,
+                            redirectUri: ConfigAppB.redirectUri
+                        }).then(response => {
+                            console.log("LOG login Response: ", response)
+                        }).catch(error => {
+                            console.error("LOG login Error: ", error)
+                        })
+                    });
+                }
+            }
+        }
+    }, [inProgress, isAuthenticated, setCookie]);
+
+    useEffect(() => {
+        if (isAuthenticated && !getCookieActiveAccount()) {
+            const account = getActiveAccount();
+            if (account) {
+                setCookie('activeAccount', account, {path: '/', secure: true, sameSite: 'none'});
+            }
+        }
+    }, [isAuthenticated, setCookie]);
+
+    useEffect(() => {
+        if (logoutParam && logoutParam === "true") {
+            drainLocalStorage();
+        }
+    }, [logoutParam]);
 
     const handleLogout = (logoutType: LogoutType) => {
         console.log("Starting Logout...");
@@ -31,10 +73,10 @@ function App() {
             console.log("Logout Using Popup")
             msalAppBInstance.logoutPopup()
                 .then(response => {
-                    console.log("Logout Response: ", response)
+                    console.log("LOG Logout Response: ", response)
                 }).catch(error => {
-                console.error("Logout Error: ", error)
-            });
+                console.error("LOG Logout Error: ", error)
+            })
         }
 
         if (logoutType === LogoutType.REDIRECT) {
@@ -75,43 +117,13 @@ function App() {
         }
     }
 
-    const { inProgress } = useMsal();
-
-    useEffect(() => {
-        console.log("LOG isAuthenticated: ", isAuthenticated)
-        if (!isAuthenticated) {
-            if (inProgress === InteractionStatus.None) {
-                const account = getActiveAccount();
-                if (account) {
-                    msalAppBInstance.initialize().then(() => {
-                        msalAppBInstance.loginPopup({
-                            loginHint: account.username,
-                            scopes: defaultScopes,
-                        }).then(response => {
-                            console.log("LOG login Response: ", response)
-                        }).catch(error => {
-                            console.error("LOG login Error: ", error)
-                        });
-                    });
-                }
-            }
-        } else {
-            const account = getActiveAccount();
-            console.log("LOG Account: ", account)
-            if (account && !getCookieActiveAccount()) {
-                console.log("LOG assign cookie")
-                setCookie('activeAccount', account);
-            }
-        }
-    }, [inProgress, isAuthenticated]);
-
     function drainLocalStorage() {
-        console.log("Draining Local Storage...")
+        console.log("LOG Draining Local Storage...")
         const items = {...localStorage};
         for (const key in items) {
             localStorage.removeItem(key);
         }
-        console.log("cleaning cookies...")
+        console.log("LOG cleaning cookies...")
         removeCookie('activeAccount');
         window.location.href = "http://localhost:5173?logout=true";
     }
@@ -133,8 +145,6 @@ function App() {
 
     function showMyProfile() {
         getProfile(getActiveAccount()).then(response => {
-            // console.log("Profile Response: ", response)
-            //convert response to Profile type
             const profile: Profile = {
                 displayName: response.displayName,
                 givenName: response.givenName,
@@ -155,8 +165,6 @@ function App() {
 
     return (
         <>
-            {isAuthenticated && !getCookieActiveAccount() && drainLocalStorage()}
-            {logoutParam === "true" && drainLocalStorage()}
             {isAuthenticated
                 ?
                 <Container>

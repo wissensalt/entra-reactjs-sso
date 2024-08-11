@@ -8,6 +8,7 @@ import {msalAppAInstance} from "./MsalConfig";
 import {PublicClientApplication} from "@azure/msal-browser";
 import {Route, Routes} from "react-router";
 import {BrowserRouter} from "react-router-dom";
+import {CookiesProvider} from "react-cookie";
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
@@ -15,7 +16,9 @@ const root = ReactDOM.createRoot(
 
 const appWrapper = (instance: PublicClientApplication) => {
     return <MsalProvider instance={instance}>
-        <App/>
+        <CookiesProvider>
+            <App/>
+        </CookiesProvider>
     </MsalProvider>
 }
 root.render(

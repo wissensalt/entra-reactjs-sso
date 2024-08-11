@@ -3,7 +3,8 @@ import {Configuration, LogLevel, PublicClientApplication} from "@azure/msal-brow
 const scopes: Array<string> = ['User.Read', 'openid', 'email', 'profile'];
 const env: ImportMetaEnv = await import.meta.env;
 const authority = env.VITE_AUTHORITY;
-const appClientId = env.VITE_APP_CLIENT_ID;
+const appAClientId = env.VITE_APP_CLIENT_ID_APP_A;
+const appBClientId = env.VITE_APP_CLIENT_ID_APP_B;
 
 export interface ApplicationConfig {
     appName: string,
@@ -14,21 +15,12 @@ export interface ApplicationConfig {
     redirectStartPage: string
 }
 
-export const ConfigAppPlayground: ApplicationConfig = {
-    appName: "Playground",
-    scopes: scopes,
-    authority: authority,
-    redirectUri: "http://localhost:5173/",
-    clientId: appClientId,
-    redirectStartPage: "http://localhost:5173"
-}
-
 export const ConfigAppA: ApplicationConfig = {
     appName: "App A",
     scopes: scopes,
     authority: authority,
     redirectUri: "http://localhost:3000/",
-    clientId: appClientId,
+    clientId: appAClientId,
     redirectStartPage: "http://localhost:3000/"
 }
 
@@ -37,8 +29,8 @@ export const ConfigAppB: ApplicationConfig = {
     scopes: scopes,
     authority: authority,
     redirectUri: "http://localhost:3001/",
-    clientId: appClientId,
-    redirectStartPage: "http://localhost:3001"
+    clientId: appBClientId,
+    redirectStartPage: "http://localhost:3001/"
 }
 
 
@@ -66,7 +58,5 @@ export const MsalConfig = (appConfig: ApplicationConfig): Configuration => {
         }
     }
 };
-
-export const msalPlaygroundInstance: PublicClientApplication = new PublicClientApplication(MsalConfig(ConfigAppPlayground));
 export const msalAppAInstance: PublicClientApplication = new PublicClientApplication(MsalConfig(ConfigAppA));
 export const msalAppBInstance: PublicClientApplication = new PublicClientApplication(MsalConfig(ConfigAppB));

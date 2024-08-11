@@ -4,16 +4,9 @@ import App from './App.tsx'
 import 'bootstrap/dist/css/bootstrap.min.css';
 import {BrowserRouter, Route, Routes} from "react-router-dom";
 import {LoginPage} from "./LoginPage.tsx";
-import {msalAppAInstance, msalAppBInstance, msalPlaygroundInstance} from "./MsalConfig.ts";
+import {msalAppAInstance, msalAppBInstance} from "./MsalConfig.ts";
 import {MsalProvider} from "@azure/msal-react";
 import {PublicClientApplication} from "@azure/msal-browser";
-
-const appWrapper = (instance: PublicClientApplication) => {
-    return <MsalProvider instance={instance}>
-        <App/>
-    </MsalProvider>
-}
-
 const loginWrapper = (instance: PublicClientApplication) => {
     return <MsalProvider instance={instance}>
         <LoginPage/>
@@ -25,7 +18,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
         <BrowserRouter>
             <Routes>
-                <Route path="/" element={appWrapper(msalPlaygroundInstance)}/>
+                <Route path="/" element={<App/>}/>
                 <Route path="/login-app-a" element={loginWrapper(msalAppAInstance)}/>
                 <Route path="/login-app-b" element={loginWrapper(msalAppBInstance)}/>
             </Routes>

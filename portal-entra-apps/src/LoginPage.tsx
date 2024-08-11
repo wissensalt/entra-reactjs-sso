@@ -3,7 +3,6 @@ import {
     ApplicationConfig,
     ConfigAppA, msalAppAInstance,
     msalAppBInstance,
-    msalPlaygroundInstance
 } from "./MsalConfig.ts";
 import {useLocation} from "react-router";
 import {Location} from "react-router-dom";
@@ -15,6 +14,7 @@ import {
 } from "@azure/msal-browser";
 import * as React from "react";
 import {useCookies} from "react-cookie";
+import {useEffect} from "react";
 
 
 enum LoginType {
@@ -24,9 +24,22 @@ enum LoginType {
 
 export const LoginPage = () => {
     const location: Location = useLocation();
-    let appConfig: ApplicationConfig = location.state?.appConfig;
+    const appConfig: ApplicationConfig = location.state?.appConfig;
     const isAuthenticated: boolean = useIsAuthenticated();
-    const [cookies, setCookie, removeCookie] = useCookies(['activeAccount']);
+    const [, setCookie] = useCookies(['activeAccount']);
+
+    useEffect(() => {
+        if (!appConfig) {
+            return;
+        }
+
+        if (isAuthenticated) {
+            const account = getActiveAccount();
+            if (account) {
+                setCookie('activeAccount', account, {path: '/', secure: true, sameSite: 'none'});
+            }
+        }
+    }, [appConfig, isAuthenticated, setCookie]);
 
     if (!appConfig) {
 
@@ -44,6 +57,16 @@ export const LoginPage = () => {
         </>
     }
 
+    function getActiveAccount(): AccountInfo | null {
+
+        return msalAppAInstance.getActiveAccount()
+            ?? msalAppBInstance.getActiveAccount()
+            ?? msalAppAInstance.getAllAccounts()[0]
+            ?? msalAppBInstance.getAllAccounts()[0]
+            ?? null;
+    }
+
+
     const handleLogin = (loginType: LoginType) => {
         console.log("Starting Login...");
 
@@ -55,30 +78,22 @@ export const LoginPage = () => {
             }
             console.log("App Config: ", appConfig.appName)
             if (appConfig.appName === ConfigAppA.appName) {
-                msalAppAInstance.initialize(loginRequest).then(() => {
-                    console.log("Initialized App A")
-                    msalAppAInstance.loginPopup(loginRequest)
-                        .then(response => {
-                            console.log("LOG Login Response: ", response);
-                            const activeAccount: AccountInfo = response.account;
-                            msalAppAInstance.setActiveAccount(activeAccount);
-                            setCookie('activeAccount', activeAccount, {path: '/'});
-                        }).catch(error => {
-                        console.error("LOG Login Error: ", error)
-                    });
+                console.log("Initialized App A")
+                msalAppAInstance.loginPopup(loginRequest)
+                    .then(response => {
+                        const activeAccount: AccountInfo = response.account;
+                        msalAppAInstance.setActiveAccount(activeAccount);
+                    }).catch(error => {
+                    console.error("LOG Login Error: ", error)
                 });
             } else {
-                msalAppBInstance.initialize(loginRequest).then(() => {
-                    console.log("Initialized App B")
-                    msalAppBInstance.loginPopup(loginRequest)
-                        .then(response => {
-                            console.log("LOG Login Response: ", response);
-                            const activeAccount: AccountInfo = response.account;
-                            msalAppBInstance.setActiveAccount(activeAccount);
-                            setCookie('activeAccount', activeAccount, {path: '/'});
-                        }).catch(error => {
-                        console.error("LOG Login Error: ", error)
-                    });
+                console.log("Initialized App B")
+                msalAppBInstance.loginPopup(loginRequest)
+                    .then(response => {
+                        const activeAccount: AccountInfo = response.account;
+                        msalAppBInstance.setActiveAccount(activeAccount);
+                    }).catch(error => {
+                    console.error("LOG Login Error: ", error)
                 });
             }
         }
@@ -87,8 +102,8 @@ export const LoginPage = () => {
             console.log("Login Using Redirect")
             const loginRequest: RedirectRequest = {
                 scopes: appConfig.scopes,
-                redirectUri: "http://localhost:5173/",
-                redirectStartPage: "http://localhost:5173/"
+                redirectUri: appConfig.redirectUri,
+                redirectStartPage: appConfig.redirectStartPage
             }
             if (appConfig.appName === ConfigAppA.appName) {
                 msalAppAInstance.loginRedirect(loginRequest)
@@ -97,44 +112,32 @@ export const LoginPage = () => {
                     }).catch(error => {
                     console.error("Login Error: ", error)
                 });
-            } else {
-                msalAppBInstance.initialize(loginRequest).then(() => {
-                    console.log("Initialized App B")
-                    msalAppBInstance.loginRedirect(loginRequest)
-                        .then(response => {
-                            console.log("Login Response: ", response)
-                        }).catch(error => {
-                        console.error("Login Error: ", error)
-                    });
-                });
             }
+            //
+            //     else {
+            //         msalAppBInstance.loginRedirect(loginRequest)
+            //             .then(response => {
+            //                 console.log("Login Response: ", response)
+            //             }).catch(error => {
+            //             console.error("Login Error: ", error)
+            //         });
+            //     }
         }
     }
 
     const redirectSuccess = () => {
         console.log("Redirecting to App...")
-        if (appConfig.appName === ConfigAppA.appName) {
-            console.log("Redirecting to App A")
-            let activeAccount = msalAppAInstance.getActiveAccount();
-            if (!activeAccount) {
-                const allAccounts = msalAppAInstance.getAllAccounts();
-                activeAccount = allAccounts[0];
+        const activeAccount = getActiveAccount();
+        if (activeAccount) {
+            if (appConfig.appName === ConfigAppA.appName) {
+                console.log("Redirecting to App A");
+                window.location = "http://localhost:3000?username=" + activeAccount.username;
+            } else {
+                console.log("Redirecting to App B");
+                window.location = "http://localhost:3000?username=" + activeAccount.username;
             }
-
-            msalAppAInstance.setActiveAccount(activeAccount);
-            console.log("Active Account: ", msalAppAInstance.getActiveAccount());
-            window.location = "http://localhost:3000?username=" + activeAccount.username;
         } else {
-            console.log("Redirecting to App A")
-            let activeAccount = msalAppBInstance.getActiveAccount();
-            if (!activeAccount) {
-                const allAccounts = msalAppBInstance.getAllAccounts();
-                activeAccount = allAccounts[0];
-            }
-
-            msalAppBInstance.setActiveAccount(activeAccount);
-            console.log("Active Account: ", msalAppBInstance.getActiveAccount());
-            window.location = "http://localhost:3001?username=" + activeAccount.username;
+            console.error("No Active Account Found");
         }
     }
 

@@ -29,7 +29,7 @@ export const ConfigAppB: ApplicationConfig = {
 }
 
 export const MsalConfig = (appConfig: ApplicationConfig): Configuration => {
-    return {
+    const config: Configuration = {
         auth: {
             clientId: appConfig.clientId,
             authority: appConfig.authority,
@@ -50,6 +50,9 @@ export const MsalConfig = (appConfig: ApplicationConfig): Configuration => {
             }
         }
     }
+
+    return config;
 };
 export const msalAppAInstance: PublicClientApplication = new PublicClientApplication(MsalConfig(ConfigAppA));
+
 export const msalAppBInstance: PublicClientApplication = new PublicClientApplication(MsalConfig(ConfigAppB));
